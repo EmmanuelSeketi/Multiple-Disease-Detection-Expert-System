@@ -86,33 +86,3 @@ VALUES ('Test','User','test@example.com','Other',30,'testuser','<HASH_HEX>');
 ```powershell
 streamlit run main.py
 ```
-
-## Development conveniences
-
-- Want to skip login while developing? Set `SKIP_AUTH = True` in `main.py`.
-- The chatbot uses `medical.txt` in the project root as its knowledge base.
-- Optional packages (LangChain, FAISS) are used only when installed — the bot falls back to a simple text search otherwise.
-
-## Notes about models and compatibility
-
-- If you get errors unpickling models (e.g., ModuleNotFoundError referencing `keras.src...`), that means the model was saved with a different Keras/TensorFlow version. Fixes:
-  - Recreate the model in your current environment and re-save, or
-  - Install a tensorflow/keras version matching the model's original environment (e.g., `pip install tensorflow==2.11.0`), or
-  - Re-save model using `model.save()` (Keras native) and load with `keras.models.load_model()`.
-
-## Moving models into `Models/` (I can do this for you)
-
-If you want, I can move any existing .sav files in the project root into `Models/` and update modules accordingly. Tell me which files to move or confirm and I'll perform the move.
-
-## Troubleshooting
-
-- Missing Lottie/animation files: the symptom module now ignores missing animation files (no crash).
-- Missing optional packages: the app provides fallbacks; install optional packages only if you need those features.
-- If you hit a runtime error while launching the app, paste the traceback and I'll fix it.
-
----
-
-If you'd like, I can now:
-
-- Move any existing model files into `Models/` automatically (I can run filesystem commands here), or
-- Update all module paths to point to a different centralized models directory of your choosing.
