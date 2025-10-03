@@ -1,0 +1,45 @@
+Malaria is a serious infectious disease spread by
+certain mosquitoes. It is most common in tropical
+climates. It is characterized by recurrent symptoms
+of chills, fever, and an enlarged spleen. Other symptoms
+may include fatigue, severe headache, or nausea and
+vomiting.
+
+Malaria can be treated with medication, but it often recurs.
+Malaria is endemic (occurs frequently in a particular
+locality) in many third world countries. Isolated, small
+outbreaks sometimes occur within the boundaries of
+the United States, with most of the cases reported as
+having been imported from other locations.
+Human malaria is caused by four different species
+of a parasite belonging to genus Plasmodium: Plasmo-
+dium falciparum (the most deadly), Plasmodium vivax,
+Plasmodium malariae, and Plasmodium ovale. The last
+two are fairly uncommon. Many animals can get
+malaria, but human malaria does not spread to ani-
+mals. In turn, animal malaria does not spread to
+humans.
+
+Malaria cannot be casually transmitted directly
+from one person to another. Instead, a mosquito
+bites an infected person and then passes the infection
+on to the next human it bites. It is also possible to
+spread malaria via contaminated needles or in blood
+transfusions. This is why all blood donors are carefully
+screened with questionnaires for possible exposure to
+malaria.
+It is possible to contract malaria in non-endemic
+areas, although such cases are rare. Nevertheless, at
+least 89 cases of so-called airport malaria, in which trav-
+elers contract malaria while passing through crowded
+airport terminals, have been identified since 1969.
+
+This System is a  Multiple Disease Detection Expert System that is able to detect 45 Diseases in total.
+
+This system can detect  diseases which include  Fungal infection, Allergy, GERD, Chronic cholestasis, Drug Reaction,
+Peptic ulcer disease, AIDS, Diabetes, Gastroenteritis, Bronchial Asthma, Hypertension,
+Migraine, Cervical spondylosis, Paralysis (brain hemorrhage), Jaundice, Malaria, Chicken pox,
+Dengue, Typhoid, hepatitis A, Hepatitis B, Hepatitis C, Hepatitis D, Hepatitis E,
+Alcoholic hepatitis, Tuberculosis, Common Cold, Pneumonia, Dimorphic hemorrhoids(piles),
+Heart attack, Varicose veins, Hypothyroidism, Hyperthyroidism, Hypoglycemia, Osteoarthritis,
+Arthritis, (vertigo) Paroxysmal Positional Vertigo, Acne, Urinary tract infection, Psoriasis and Impetigo
