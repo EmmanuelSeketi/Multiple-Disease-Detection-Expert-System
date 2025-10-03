@@ -1,8 +1,23 @@
 import streamlit as st
 import joblib
 from streamlit_extras.colored_header import colored_header
-# Load the trained model
-model = joblib.load("Models\symptom.sav")
+import os
+
+# Model loading: prefer the Models/ directory for centralized storage
+def _load_symptom_model():
+    possible = [
+        os.path.join(os.path.dirname(__file__), "Models", "symptom.sav"),
+        os.path.join(os.path.dirname(__file__), "symptom.sav"),
+    ]
+    for p in possible:
+        if os.path.exists(p):
+            try:
+                return joblib.load(p), None
+            except Exception as e:
+                return None, f"Failed to load symptom model: {e}"
+    return None, f"Model not found. Checked: {possible}"
+
+model, _model_err = _load_symptom_model()
 
 # Original list of symptoms
 l1_original = ['itching', 'skin_rash', 'nodal_skin_eruptions', 'continuous_sneezing', 'shivering', 'chills', 'joint_pain',
@@ -51,20 +66,33 @@ def symptome():
     )
     st.write("\n")  
       
-    import json
-    from streamlit_lottie import st_lottie
-    def load_lottiefile(filepath: str):
-        with open(filepath, "r", encoding="utf-8") as f:
-            return json.load(f)
-    lottiedoc = load_lottiefile("LottieFiles\Symptoms.json")
-    #st_lottie(
-        #lottiedoc,
-        #speed=0.6, 
-        #loop=True,
-       # quality="high",
-        #height=200,
-       # width=500,
-    
+    # Optional Lottie animation (non-fatal if not present)
+    try:
+        import json
+        from streamlit_lottie import st_lottie
+
+        def load_lottiefile(filepath: str):
+            # Prefer a path relative to this module
+            if not os.path.exists(filepath):
+                fallback = os.path.join(os.path.dirname(__file__), "LottieFiles", "Symptoms.json")
+                filepath = fallback
+            if not os.path.exists(filepath):
+                raise FileNotFoundError(filepath)
+            with open(filepath, "r", encoding="utf-8") as f:
+                return json.load(f)
+
+        lottie_path = os.path.join(os.path.dirname(__file__), "LottieFiles", "Symptoms.json")
+        lottiedoc = None
+        try:
+            lottiedoc = load_lottiefile(lottie_path)
+            # If you want to display the animation, uncomment the next line
+            # st_lottie(lottiedoc, speed=0.6, loop=True, quality="high", height=200, width=500)
+        except FileNotFoundError:
+            # No animation available; continue silently
+            lottiedoc = None
+    except Exception:
+        # streamlit_lottie not installed or other import error; silently skip animation
+        lottiedoc = None
   #  )
     # Define your main content
     
@@ -79,18 +107,23 @@ def symptome():
     # Define your main content
     if selected_symptoms:
         st.write("\n")
-        
-        prediction = predict_disease(selected_symptoms)
+        # Load model here (runtime) and show friendly error if not available
+        mdl, err = _load_symptom_model()
+        if err:
+            st.error(err)
+            return
+
+        prediction = predict_disease(selected_symptoms, mdl)
         st.subheader("Diagnosis:")
         st.error(prediction)
 
-def predict_disease(symptoms):
+def predict_disease(symptoms, model_in):
     # Create an input array for prediction
     input_data = [1 if symptom in symptoms else 0 for symptom in l1_original]
     input_data = [input_data]  # Scikit-learn expects a 2D array
 
     # Make prediction using the trained model
-    prediction = model.predict(input_data)[0]
+    prediction = model_in.predict(input_data)[0]
 
     # Get the corresponding disease
     predicted_disease = disease[prediction]
@@ -98,4 +131,7 @@ def predict_disease(symptoms):
     return predicted_disease
 
 if __name__ == "__main__":
-    symptome()
+    # For debugging you can run the symptom page directly, but avoid
+    # side-effects on import when used by Streamlit.
+    # symptome()
+    pass

@@ -1,468 +1,159 @@
 import streamlit as st
 import mysql.connector
 import hashlib
-from streamlit_option_menu import option_menu
+
+# Optional imports with safe fallbacks
+try:
+    from streamlit_option_menu import option_menu
+except Exception:
+    option_menu = None
+
+try:
+    from streamlit_extras.colored_header import colored_header
+except Exception:
+    def colored_header(label: str = "", description: str = "", color_name: str = None):
+        st.markdown(f"**{label}**\n{description}")
+
+# Import page modules (these should be import-safe)
 from symptom_module import symptome
 from bot_module import chat_bot
 from malaria_module import malaria
 from diabetes_module import diabetes
-from streamlit_extras.colored_header import colored_header
+
+# Quick dev flag: set True to bypass login and go straight to the home dashboard
+# Change to False to restore normal login flow
+SKIP_AUTH = True
 
 
-# Function to establish a connection to the MySQL database
 def connect_to_database():
-    return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="",
-        database="disease"
-    )
+    """Return a MySQL connection. Update credentials if needed for your environment."""
+    return mysql.connector.connect(host="localhost", user="root", password="", database="disease")
 
-# Function to hash a password using SHA-256
-def hash_password(password):
-    hashed_password = hashlib.sha256(password.encode()).hexdigest()
-    return hashed_password
 
-# Function to insert a user into the MySQL database
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
 def insert_user(firstname, lastname, email, gender, age, username, password):
     try:
-        # Hash the password
-        hashed_password = hash_password(password)
-
-        # Establish a connection to the MySQL database
-        connection = connect_to_database()
-
-        # Create a cursor object to execute SQL queries
-        cursor = connection.cursor()
-
-        # Check if any required field is empty
+        hashed = hash_password(password)
+        conn = connect_to_database()
+        cur = conn.cursor()
         if not all([firstname, lastname, email, gender, age, username, password]):
             st.warning("Please fill in all the required fields.")
-            return False
-
-        # Check if the email already exists
-        existing_query = "SELECT * FROM user WHERE email=%s"
-        cursor.execute(existing_query, (email,))
-        existing_user = cursor.fetchone()
-
-        if existing_user:
+            cur.close(); conn.close(); return False
+        cur.execute("SELECT * FROM user WHERE email=%s", (email,))
+        if cur.fetchone():
             st.warning("Email already exists. Choose a different email.")
-            return False
-
-        # Query to insert a new user with hashed password
-        insert_query = "INSERT INTO user (firstname, lastname, email, gender, age, username, password) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-        cursor.execute(insert_query, (firstname, lastname, email, gender, age, username, hashed_password))
-
-        # Commit the changes to the database
-        connection.commit()
-
-        # Close the cursor and connection
-        cursor.close()
-        connection.close()
-
+            cur.close(); conn.close(); return False
+        cur.execute("INSERT INTO user (firstname, lastname, email, gender, age, username, password) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                    (firstname, lastname, email, gender, age, username, hashed))
+        conn.commit()
+        cur.close(); conn.close()
         return True
-
-    except mysql.connector.Error as err:
-        st.error(f"MySQL Error: {err}")
+    except Exception as e:
+        st.error(f"DB error: {e}")
         return False
 
-# Function to check credentials against MySQL database
+
 def authenticate(email, password):
     try:
-        # Hash the provided password
-        hashed_password = hash_password(password)
-
-        # Establish a connection to the MySQL database
-        connection = connect_to_database()
-
-        # Create a cursor object to execute SQL queries
-        cursor = connection.cursor()
-
-        # Query to retrieve a hashed password for the given email
-        query = "SELECT password FROM user WHERE email=%s"
-        cursor.execute(query, (email,))
-        stored_password_tuple = cursor.fetchone()
-
-        # Check if the email exists and if the hashed password matches
-        if stored_password_tuple and hashed_password == stored_password_tuple[0]:
-            return True
-
-        # Close the cursor and connection
-        cursor.close()
-        connection.close()
-
+        hashed = hash_password(password)
+        conn = connect_to_database()
+        cur = conn.cursor()
+        cur.execute("SELECT password FROM user WHERE email=%s", (email,))
+        row = cur.fetchone()
+        cur.close(); conn.close()
+        return bool(row and row[0] == hashed)
+    except Exception as e:
+        st.error(f"DB error: {e}")
         return False
 
-    except mysql.connector.Error as err:
-        st.error(f"MySQL Error: {err}")
-        return False
 
-# Streamlit app for registration
 def registration():
     st.title("Multiple Disease Diagnosis Expert System")
-    colored_header(
-        label="",
-        description="Enter details to create Your Health Profile",
-        color_name= "red-70",
-        ) 
-
-    # Using st.form to organize input fields
-    with st.form(key="registration_form"):
-        # Input fields for firstname, lastname, email, gender, and age
+    colored_header(label="", description="Enter details to create Your Health Profile", color_name="red-70")
+    with st.form("registration_form"):
         col1, col2 = st.columns(2)
-        firstname = col1.text_input("First Name", key="firstname", placeholder="Enter your first name")
-        lastname = col2.text_input("Last Name", key="lastname", placeholder="Enter your last name")
-        email = col1.text_input("Email", key="email", placeholder="Enter your email address")
-        gender = col2.selectbox("Gender", ["Male", "Female", "Other"], key="gender")
-        age = col1.number_input("Age", min_value=1, max_value=150, key="age", placeholder="Enter your age")
-        username = col2.text_input("Username", key="username", placeholder="Choose a username")
-        password = col1.text_input("Password", type="password", key="password", placeholder="Enter your password")
-        confirm_password = col2.text_input("Confirm Password", type="password", key="confirm_password", placeholder="Confirm your password")
-
-      
-       
-        # Validate input fields
+        firstname = col1.text_input("First Name")
+        lastname = col2.text_input("Last Name")
+        email = col1.text_input("Email")
+        gender = col2.selectbox("Gender", ["Male", "Female", "Other"])
+        age = col1.number_input("Age", min_value=1, max_value=150)
+        username = col2.text_input("Username")
+        password = col1.text_input("Password", type="password")
+        confirm = col2.text_input("Confirm Password", type="password")
         if st.form_submit_button("Create Health Profile"):
-            # Check if passwords match
-            if not all([password, confirm_password]) or password != confirm_password:
-                st.warning("Passwords do not match. Please enter them again.")
-            else:
-                # Insert user into MySQL database
-                if insert_user(firstname, lastname, email, gender, age, username, password):
-                    st.success("Registration successful! You can now go to the Login page.")
-                    
-    # Add some space
+            if not password or password != confirm:
+                st.warning("Passwords do not match or are empty")
+            elif insert_user(firstname, lastname, email, gender, age, username, password):
+                st.success("Registration successful! You can now go to the Login page.")
     st.write("\n")
-    st.write("\n")
-
-    # Buttons to go to the other page
     st.button("I already have a Health Profile", on_click=lambda: st.session_state.update(page="login"))
 
-    
-    
+
 def home():
-    with st.sidebar:
-        selected = option_menu('Multiple Disease Diagnosis Expert System',
-                               [
-                                'Symptom-based Diagnosis',
-                                'Malaria Diagnosis',
-                                'Diabetes Diagnosis',
-                                'Disease Chatbot',
-                                'Log out',
-                                ],
-                               icons=['person-lines-fill', 'bug',  'droplet-half', 'robot',
-                                      'exit', ],
-                               default_index=0,
-                               styles={"nav-link": { "--hover-color": "#989898"},
-                                       }
-                               )
-    # Initialize chat history
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-        
-        
-    if selected == 'Symptom-based Diagnosis':
-        symptome()  
-    if selected == 'Disease Chatbot':
-        chat_bot()  
-    if selected == 'Malaria Diagnosis':
-        malaria()         
-    if selected == 'Diabetes Diagnosis':
-        diabetes()      
-    if selected == 'Log out':
-        st.session_state.page = "login"  
-        st.rerun()    
-    
-    
-    
-    
-    
-# Streamlit app for login
-def login():    
+    """Render the home page with a menu and route to page modules."""
+    # Use top tabs for navigation; Symptom-based Diagnosis first so it is the default
+    tabs = st.tabs(["Symptom based Diagnosis", "Malaria Diagnosis", "Diabetes Diagnosis", "Disease Chatbot", "Log out"])
 
+    # Symptom tab (default)
+    with tabs[0]:
+        symptome()
+
+    # Malaria tab
+    with tabs[1]:
+        malaria()
+
+    # Diabetes tab
+    with tabs[2]:
+        diabetes()
+
+    # Chatbot tab
+    with tabs[3]:
+        chat_bot()
+
+    # Log out tab
+    with tabs[4]:
+        if st.button("Log out"):
+            st.session_state.page = "login"
+            st.experimental_rerun()
+
+    # Navigation is handled via tabs above; no `selected` routing required.
+
+
+def login():
     st.title("Multiple Disease Diagnosis Expert System")
-    colored_header(
-        label="",
-        description=" &nbsp;Login to continue with the Multiple Disease Diagnosis Expert System...",
-        color_name= "red-70",
-        ) 
-    #Sst.write("\n")
-    
-  
-    # Using st.form to organize input fields
-    with st.form(key="login_form"):
-        # Input fields for email and password
-        email = st.text_input("Email", key="login_email", placeholder="Enter your email address")
-        password = st.text_input("Password", type="password", key="login_password", placeholder="Enter your password")
-
-        # Validate input fields
-        if st.form_submit_button("Login to profile"):
-            # Authenticate user against MySQL database
-            if not all([email, password]) or not authenticate(email, password):
-                st.warning("Invalid email or password. Please try again.")
+    colored_header(label="", description="Login to continue", color_name="red-70")
+    with st.form("login_form"):
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
+        if st.form_submit_button("Login"):
+            if not authenticate(email, password):
+                st.warning("Invalid email or password")
             else:
-                #st.success("Login successful! Redirecting to the dashboard")
-                st.session_state.page = "home"  
-                st.rerun()
-                
-                
-    # Add some space
-    st.write("\n")
-    st.write("\n")
-
-    # Buttons to go to the other page
+                st.session_state.page = "home"
+                st.experimental_rerun()
     st.button("Create Health Profile", on_click=lambda: st.session_state.update(page="register"))
-    
-    
-   # import json
-    #from streamlit_lottie import st_lottie
-    #def load_lottiefile(filepath: str):
-     ##      return json.load(f)
-    #lottiedoc = load_lottiefile("C:\\Users\\User\\Downloads\\Animation.json")
-    #st_lottie(
-     #   lottiedoc,
-      #  speed=1, 
-    # loop=True,
-     #   quality="h
-    #)
-    
-    
-# Main Streamlit app
-def main():
-    # Set background color using st.markdown
-    # Initialize session state
-    if "page" not in st.session_state:
-        st.session_state.page = "login"
 
-    
-  
-    # Depending on the page, call the appropriate function
+
+def main():
+    if "page" not in st.session_state:
+        # Use SKIP_AUTH to bypass login during development/testing
+        st.session_state.page = "home" if SKIP_AUTH else "login"
     if st.session_state.page == "register":
         registration()
-        
     elif st.session_state.page == "login":
-        login()     
-         
+        login()
     elif st.session_state.page == "home":
-        home()     
-    
-        
+        home()
+
 
 if __name__ == "__main__":
     main()
 
 
 
-import streamlit as st
-import mysql.connector
-import hashlib
-from streamlit_option_menu import option_menu
-from symptom_module import symptome
-from bot_module import chat_bot
-from malaria_module import malaria
-
-
-# Function to establish a connection to the MySQL database
-def connect_to_database():
-    return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="",
-        database="disease"
-    )
-
-# Function to hash a password using SHA-256
-def hash_password(password):
-    hashed_password = hashlib.sha256(password.encode()).hexdigest()
-    return hashed_password
-
-# Function to insert a user into the MySQL database
-def insert_user(firstname, lastname, email, gender, age, username, password):
-    try:
-        # Hash the password
-        hashed_password = hash_password(password)
-
-        # Establish a connection to the MySQL database
-        connection = connect_to_database()
-
-        # Create a cursor object to execute SQL queries
-        cursor = connection.cursor()
-
-        # Check if any required field is empty
-        if not all([firstname, lastname, email, gender, age, username, password]):
-            st.warning("Please fill in all the required fields.")
-            return False
-
-        # Check if the email already exists
-        existing_query = "SELECT * FROM user WHERE email=%s"
-        cursor.execute(existing_query, (email,))
-        existing_user = cursor.fetchone()
-
-        if existing_user:
-            st.warning("Email already exists. Choose a different email.")
-            return False
-
-        # Query to insert a new user with hashed password
-        insert_query = "INSERT INTO user (firstname, lastname, email, gender, age, username, password) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-        cursor.execute(insert_query, (firstname, lastname, email, gender, age, username, hashed_password))
-
-        # Commit the changes to the database
-        connection.commit()
-
-        # Close the cursor and connection
-        cursor.close()
-        connection.close()
-
-        return True
-
-    except mysql.connector.Error as err:
-        st.error(f"MySQL Error: {err}")
-        return False
-
-# Function to check credentials against MySQL database
-def authenticate(email, password):
-    try:
-        # Hash the provided password
-        hashed_password = hash_password(password)
-
-        # Establish a connection to the MySQL database
-        connection = connect_to_database()
-
-        # Create a cursor object to execute SQL queries
-        cursor = connection.cursor()
-
-        # Query to retrieve a hashed password for the given email
-        query = "SELECT password FROM user WHERE email=%s"
-        cursor.execute(query, (email,))
-        stored_password_tuple = cursor.fetchone()
-
-        # Check if the email exists and if the hashed password matches
-        if stored_password_tuple and hashed_password == stored_password_tuple[0]:
-            return True
-
-        # Close the cursor and connection
-        cursor.close()
-        connection.close()
-
-        return False
-
-    except mysql.connector.Error as err:
-        st.error(f"MySQL Error: {err}")
-        return False
-
-# Streamlit app for registration
-def registration():
-    st.title("Enter details to create Your Health Profile ")
-    st.write("\n")
-
-    # Using st.form to organize input fields
-    with st.form(key="registration_form"):
-        # Input fields for firstname, lastname, email, gender, and age
-        col1, col2 = st.columns(2)
-        firstname = col1.text_input("First Name", key="firstname", placeholder="Enter your first name")
-        lastname = col2.text_input("Last Name", key="lastname", placeholder="Enter your last name")
-        email = col1.text_input("Email", key="email", placeholder="Enter your email address")
-        gender = col2.selectbox("Gender", ["Male", "Female", "Other"], key="gender")
-        age = col1.number_input("Age", min_value=1, max_value=150, key="age", placeholder="Enter your age")
-        username = col2.text_input("Username", key="username", placeholder="Choose a username")
-        password = col1.text_input("Password", type="password", key="password", placeholder="Enter your password")
-        confirm_password = col2.text_input("Confirm Password", type="password", key="confirm_password", placeholder="Confirm your password")
-
-        # Set the style for the input fields to make text brighter
-        input_fields_style = """
-        <style>
-            div[data-baseweb="input"] input {
-                color: #FFFFFF !important;  /* Set the desired text color */
-            }
-        </style>
-        """
-        st.markdown(input_fields_style, unsafe_allow_html=True)
-
-        # Validate input fields
-        if st.form_submit_button("Create Health Profile"):
-            # Check if passwords match
-            if not all([password, confirm_password]) or password != confirm_password:
-                st.warning("Passwords do not match. Please enter them again.")
-            else:
-                # Insert user into MySQL database
-                if insert_user(firstname, lastname, email, gender, age, username, password):
-                    st.success("Registration successful! You can now go to the Login page.")
-                    
-    # Add some space
-    st.write("\n")
-    st.write("\n")
-
-    # Buttons to go to the other page
-    st.button("I already have a Health Profile", on_click=lambda: st.session_state.update(page="login"))
-    
-    
-
-    
-    
-    
-# Streamlit app for login
-def login():
-    
-    st.title("Multiple Disease Diagnosis Expert System")
-    colored_header(
-        label="",
-        description="Authenticate to access the Multiple Disease Diagnosis Expert System",
-        color_name= "red-70",
-        )
-    
-    st.write("\n")
-
-    # Using st.form to organize input fields
-    with st.form(key="login_form"):
-        # Input fields for email and password
-        email = st.text_input("Email", key="login_email", placeholder="Enter your email address")
-        password = st.text_input("Password", type="password", key="login_password", placeholder="Enter your password")
-
-        # Validate input fields
-        if st.form_submit_button("Login"):
-            # Authenticate user against MySQL database
-            if not all([email, password]) or not authenticate(email, password):
-                st.warning("Invalid email or password. Please try again.")
-            else:
-                #st.success("Login successful! Redirecting to the dashboard")
-                st.session_state.page = "home"  
-                st.experimental_rerun()
-                
-                
-    # Add some space
-    st.write("\n")
-    st.write("\n")
-
-    # Buttons to go to the other page
-    st.button("Create Health Profile", on_click=lambda: st.session_state.update(page="register"))
-
-   
 
 
 
-
-# Main Streamlit app
-def main():
-    # Set background color using st.markdown
-    # Initialize session state
-    if "page" not in st.session_state:
-        st.session_state.page = "login"
-
-    
-  
-    # Depending on the page, call the appropriate function
-    if st.session_state.page == "register":
-        registration()
-        
-    elif st.session_state.page == "login":
-        login()     
-         
-    elif st.session_state.page == "home":
-        home()    
-        
-        
-        
-        
-
-    
-   

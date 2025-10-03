@@ -1,0 +1,13 @@
+streamlit
+mysql-connector-python
+streamlit-option-menu
+streamlit-extras
+streamlit-lottie
+langchain
+langchain-community
+faiss-cpu
+huggingface-hub
+scikit-learn
+pillow
+numpy
+joblib

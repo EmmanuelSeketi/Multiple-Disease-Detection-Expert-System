@@ -46,4 +46,4 @@ def diabetes():
         # Placeholder for prediction logic
         st.success("Diabetes detection logic will be executed here.")
     
-diabetes()
+# Do not execute diabetes() on import. The Streamlit entrypoint will call diabetes()

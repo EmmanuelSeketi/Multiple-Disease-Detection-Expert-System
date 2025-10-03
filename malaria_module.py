@@ -2,10 +2,47 @@ import streamlit as st
 from PIL import Image
 import numpy as np
 import joblib
+import os
 from streamlit_extras.colored_header import colored_header
 
-# Load the pre-trained model
-model = joblib.load("Models\MalariaCnn.sav")
+# Model will be loaded lazily to avoid import-time unpickling errors
+model = None
+model_candidates = [
+    os.path.join(os.path.dirname(__file__), "Models", "MalariaCnn.sav"),
+    os.path.join(os.path.dirname(__file__), "MalariaCnn.sav"),
+]
+model_path = next((p for p in model_candidates if os.path.exists(p)), model_candidates[0])
+
+
+def _load_model():
+    """Attempt to load the model and return it; on failure return None and
+    a friendly error message.
+    """
+    global model
+    if model is not None:
+        return model, None
+    if not os.path.exists(model_path):
+        return None, f"Model file not found at {model_path}"
+    try:
+        mdl = joblib.load(model_path)
+        model = mdl
+        return model, None
+    except ModuleNotFoundError as mnfe:
+        # Common when pickled objects reference a keras internal path not present
+        msg = (
+            "Model unpickling failed due to missing module: "
+            f"{mnfe.name}. This often happens when the model was pickled with a different Keras/TensorFlow version.\n"
+            "Suggested fixes:\n"
+            "  1) Recreate the model file using Keras/TensorFlow in your current environment (recommended).\n"
+            "  2) Install a compatible TensorFlow/Keras version used to create the model. Example:\n"
+            "       pip install 'tensorflow==2.11.0'\n"
+            "     or try installing a matching Keras version:\n"
+            "       pip install 'keras==2.11.0'\n"
+            "  3) If you can't change the environment, re-save the model using Keras' native `model.save()` and load with `keras.models.load_model()` instead of pickling.\n"
+        )
+        return None, msg
+    except Exception as e:
+        return None, f"Failed to load model: {e}"
 
 # Define the image size expected by the model
 image_size = (64, 64)
@@ -47,6 +84,12 @@ def malaria():
             if imageFile:
                 st.write("imageFile")
 
+    # Load model at runtime (lazy)
+    mdl, err = _load_model()
+    if err:
+        st.error(err)
+        return
+
     # Display the uploaded image and classification result
     if imageFile is not None:
         # Display the result
@@ -66,7 +109,7 @@ def malaria():
             st.write("Classifying...")
             img = Image.open(imageFile)
             img_array = preprocess_image(img)
-            prediction = model.predict(img_array)
+            prediction = mdl.predict(img_array)
 
             # Display the result with styling
             if prediction[0][0] > 0.5:
@@ -79,5 +122,5 @@ def malaria():
                 st.write("\n")    
                 st.write("The system has detected malaria parasites in the blood smear image. While providing valuable insights, comprehensive diagnosis and personalized treatment are essential.")
 
-# Run the Streamlit app
-malaria()
+# Note: Do not call malaria() at import time. The Streamlit entrypoint should
+# import this module and call malaria() when the user navigates to the page.
